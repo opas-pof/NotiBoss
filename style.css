@@ -108,6 +108,20 @@ h2 {
     transform: translateY(0);
 }
 
+.btn-test {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+}
+
+.btn-test:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
+}
+
+.btn-test:active {
+    transform: translateY(0);
+}
+
 .status-section {
     margin-bottom: 30px;
 }

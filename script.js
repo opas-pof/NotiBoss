@@ -7,13 +7,19 @@ let isRunning = false;
 const scheduleInput = document.getElementById('schedule-input');
 const runBtn = document.getElementById('run-btn');
 const clearBtn = document.getElementById('clear-btn');
+const testNotiBtn = document.getElementById('test-noti-btn');
 const statusMessage = document.getElementById('status-message');
 const scheduleList = document.getElementById('schedule-list');
 
 // โหลดข้อมูลจาก localStorage เมื่อโหลดหน้า
 window.addEventListener('DOMContentLoaded', () => {
-    loadFromLocalStorage();
-    checkNotificationPermission();
+    checkNotificationPermission().then(() => {
+        loadFromLocalStorage();
+        // ถ้ามีข้อมูลที่โหลดมา ให้ตั้ง timer ใหม่
+        if (scheduleData.length > 0 && isRunning) {
+            restartNotifications();
+        }
+    });
 });
 
 // ฟังก์ชันตรวจสอบสิทธิ์การแจ้งเตือน
@@ -158,14 +164,38 @@ function startNotifications() {
         return;
     }
 
+    // ตรวจสอบ notification permission
+    if (!('Notification' in window)) {
+        showStatus('เบราว์เซอร์ของคุณไม่รองรับการแจ้งเตือน', 'error');
+        return;
+    }
+
+    if (Notification.permission !== 'granted') {
+        checkNotificationPermission().then(() => {
+            if (Notification.permission === 'granted') {
+                restartNotifications();
+            } else {
+                showStatus('ต้องได้รับสิทธิ์การแจ้งเตือนก่อน', 'error');
+            }
+        });
+        return;
+    }
+
+    restartNotifications();
+}
+
+// ฟังก์ชันตั้ง timer ใหม่ (ใช้ทั้งตอนเริ่มใหม่และโหลดจาก localStorage)
+function restartNotifications() {
     // ล้าง timer เก่าทั้งหมด
     clearAllTimers();
+
+    const now = new Date();
+    let activeCount = 0;
 
     // เริ่มตั้ง timer สำหรับแต่ละบอส
     scheduleData.forEach((boss, index) => {
         const notifyTime = new Date(boss.notifyTime);
         const notifyBefore5Min = new Date(notifyTime.getTime() - 5 * 60 * 1000);
-        const now = new Date();
 
         if (notifyBefore5Min > now) {
             const delay = notifyBefore5Min.getTime() - now.getTime();
@@ -173,8 +203,11 @@ function startNotifications() {
                 sendNotification(boss);
             }, delay);
             notificationTimers.push(timer);
+            activeCount++;
+            console.log(`ตั้ง timer สำหรับ ${boss.bossName} - แจ้งเตือนในอีก ${Math.floor(delay / 1000 / 60)} นาที`);
         } else if (notifyTime > now && notifyBefore5Min <= now) {
             // ถ้าเวลาผ่านไปแล้วแต่ยังไม่ถึงเวลาแจ้งเตือน ให้แจ้งทันที
+            console.log(`แจ้งเตือนทันทีสำหรับ ${boss.bossName}`);
             sendNotification(boss);
         }
     });
@@ -182,23 +215,47 @@ function startNotifications() {
     isRunning = true;
     saveToLocalStorage();
     updateScheduleList();
-    showStatus(`เริ่มรันการแจ้งเตือนแล้ว (${scheduleData.length} รายการ)`, 'success');
+    showStatus(`เริ่มรันการแจ้งเตือนแล้ว (${activeCount} รายการที่กำลังรอ)`, 'success');
 }
 
 // ฟังก์ชันส่งการแจ้งเตือน
 function sendNotification(boss) {
-    if ('Notification' in window && Notification.permission === 'granted') {
+    if (!('Notification' in window)) {
+        console.error('Browser ไม่รองรับ Notification API');
+        return;
+    }
+
+    if (Notification.permission !== 'granted') {
+        console.warn('ยังไม่ได้รับสิทธิ์การแจ้งเตือน');
+        checkNotificationPermission().then(() => {
+            if (Notification.permission === 'granted') {
+                sendNotification(boss);
+            }
+        });
+        return;
+    }
+
+    try {
         const timeStr = formatTime(boss.notifyTime);
         const bossNameText = `${boss.bossName}${boss.timeInBracket ? ` ${boss.timeInBracket}` : ''}${boss.bossLevel ? ` [${boss.bossLevel}]` : ''}`;
         const message = `บอส ${bossNameText} จะเกิดในอีก 5 นาที (${timeStr})`;
         
-        new Notification('🎮 NotiBoss - แจ้งเตือนบอส', {
+        const notification = new Notification('🎮 NotiBoss - แจ้งเตือนบอส', {
             body: message,
             icon: '🎮',
             badge: '🎮',
             tag: `boss-${boss.notifyTime.getTime()}`,
             requireInteraction: false
         });
+
+        console.log('ส่งการแจ้งเตือนแล้ว:', message);
+        
+        notification.onclick = () => {
+            window.focus();
+            notification.close();
+        };
+    } catch (error) {
+        console.error('เกิดข้อผิดพลาดในการส่งการแจ้งเตือน:', error);
     }
 }
 
@@ -361,6 +418,10 @@ function loadFromLocalStorage() {
                 date: new Date(boss.date),
                 notifyTime: new Date(boss.notifyTime)
             }));
+            // ถ้ามีข้อมูลที่โหลดมา แสดงว่ากำลังรันอยู่
+            if (scheduleData.length > 0) {
+                isRunning = true;
+            }
             updateScheduleList();
         } catch (e) {
             console.error('Error loading schedule:', e);
@@ -368,9 +429,46 @@ function loadFromLocalStorage() {
     }
 }
 
+// ฟังก์ชันทดสอบการส่ง notification
+async function testNotification() {
+    if (!('Notification' in window)) {
+        showStatus('เบราว์เซอร์ของคุณไม่รองรับการแจ้งเตือน', 'error');
+        return;
+    }
+
+    if (Notification.permission === 'default') {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            showStatus('ต้องได้รับสิทธิ์การแจ้งเตือนก่อน', 'error');
+            return;
+        }
+    }
+
+    if (Notification.permission !== 'granted') {
+        showStatus('ต้องได้รับสิทธิ์การแจ้งเตือนก่อน', 'error');
+        return;
+    }
+
+    try {
+        const testBoss = {
+            bossName: 'ทดสอบ',
+            bossLevel: '99',
+            timeInBracket: '',
+            notifyTime: new Date()
+        };
+
+        sendNotification(testBoss);
+        showStatus('ส่งการแจ้งเตือนทดสอบแล้ว', 'success');
+    } catch (error) {
+        console.error('เกิดข้อผิดพลาดในการทดสอบ:', error);
+        showStatus('เกิดข้อผิดพลาดในการทดสอบ', 'error');
+    }
+}
+
 // Event Listeners
 runBtn.addEventListener('click', startNotifications);
 clearBtn.addEventListener('click', clearAll);
+testNotiBtn.addEventListener('click', testNotification);
 
 // อัปเดต countdown ทุกวินาที
 setInterval(() => {
