@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NotiBoss - ตารางเวลาบอส</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 NotiBoss - ตารางเวลาบอส</h1>
+        
+        <div class="input-section">
+            <label for="schedule-input">กรอกตารางเวลาบอส:</label>
+            <textarea id="schedule-input" placeholder="วางตารางเวลาบอสที่นี่..."></textarea>
+            <div class="button-group">
+                <button id="run-btn" class="btn btn-primary">▶️ รัน</button>
+                <button id="clear-btn" class="btn btn-secondary">🗑️ ล้างค่า</button>
+            </div>
+        </div>
+
+        <div class="status-section">
+            <div id="status-message" class="status-message"></div>
+        </div>
+
+        <div class="schedule-section">
+            <h2>📋 รายการที่กำลังรอแจ้งเตือน</h2>
+            <div id="schedule-list" class="schedule-list">
+                <p class="empty-message">ยังไม่มีรายการที่กำลังรอแจ้งเตือน</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
