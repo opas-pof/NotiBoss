@@ -242,8 +242,6 @@ function sendNotification(boss) {
         
         const notification = new Notification('🎮 NotiBoss - แจ้งเตือนบอส', {
             body: message,
-            icon: '🎮',
-            badge: '🎮',
             tag: `boss-${boss.notifyTime.getTime()}`,
             requireInteraction: false
         });
@@ -251,8 +249,17 @@ function sendNotification(boss) {
         console.log('ส่งการแจ้งเตือนแล้ว:', message);
         
         notification.onclick = () => {
+            console.log('Notification ถูกคลิก');
             window.focus();
             notification.close();
+        };
+
+        notification.onshow = () => {
+            console.log('Notification แสดงแล้ว');
+        };
+
+        notification.onerror = (error) => {
+            console.error('เกิดข้อผิดพลาดใน notification:', error);
         };
     } catch (error) {
         console.error('เกิดข้อผิดพลาดในการส่งการแจ้งเตือน:', error);
@@ -431,25 +438,32 @@ function loadFromLocalStorage() {
 
 // ฟังก์ชันทดสอบการส่ง notification
 async function testNotification() {
+    console.log('เริ่มทดสอบ notification...');
+    console.log('Notification API:', 'Notification' in window);
+    console.log('Notification permission:', Notification.permission);
+
     if (!('Notification' in window)) {
         showStatus('เบราว์เซอร์ของคุณไม่รองรับการแจ้งเตือน', 'error');
         return;
     }
 
     if (Notification.permission === 'default') {
+        console.log('ขอสิทธิ์การแจ้งเตือน...');
         const permission = await Notification.requestPermission();
+        console.log('ผลการขอสิทธิ์:', permission);
         if (permission !== 'granted') {
-            showStatus('ต้องได้รับสิทธิ์การแจ้งเตือนก่อน', 'error');
+            showStatus('คุณปฏิเสธการแจ้งเตือน กรุณาอนุญาตในเบราว์เซอร์', 'error');
             return;
         }
     }
 
     if (Notification.permission !== 'granted') {
-        showStatus('ต้องได้รับสิทธิ์การแจ้งเตือนก่อน', 'error');
+        showStatus('ต้องได้รับสิทธิ์การแจ้งเตือนก่อน กรุณาอนุญาตในเบราว์เซอร์', 'error');
         return;
     }
 
     try {
+        console.log('กำลังส่ง notification...');
         const testBoss = {
             bossName: 'ทดสอบ',
             bossLevel: '99',
@@ -457,11 +471,38 @@ async function testNotification() {
             notifyTime: new Date()
         };
 
-        sendNotification(testBoss);
-        showStatus('ส่งการแจ้งเตือนทดสอบแล้ว', 'success');
+        // ส่ง notification โดยตรง
+        const timeStr = formatTime(testBoss.notifyTime);
+        const bossNameText = `${testBoss.bossName}${testBoss.bossLevel ? ` [${testBoss.bossLevel}]` : ''}`;
+        const message = `บอส ${bossNameText} จะเกิดในอีก 5 นาที (${timeStr})`;
+        
+        const notification = new Notification('🎮 NotiBoss - แจ้งเตือนบอส (ทดสอบ)', {
+            body: message,
+            tag: `test-${Date.now()}`,
+            requireInteraction: false
+        });
+
+        console.log('ส่ง notification สำเร็จ:', notification);
+        
+        notification.onclick = () => {
+            console.log('Notification ถูกคลิก');
+            window.focus();
+            notification.close();
+        };
+
+        notification.onshow = () => {
+            console.log('Notification แสดงแล้ว');
+        };
+
+        notification.onerror = (error) => {
+            console.error('เกิดข้อผิดพลาดใน notification:', error);
+            showStatus('เกิดข้อผิดพลาดในการแสดง notification', 'error');
+        };
+
+        showStatus('ส่งการแจ้งเตือนทดสอบแล้ว - ตรวจสอบ notification ที่มุมขวาบน', 'success');
     } catch (error) {
         console.error('เกิดข้อผิดพลาดในการทดสอบ:', error);
-        showStatus('เกิดข้อผิดพลาดในการทดสอบ', 'error');
+        showStatus(`เกิดข้อผิดพลาด: ${error.message}`, 'error');
     }
 }
 
