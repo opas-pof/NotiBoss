@@ -205,6 +205,19 @@ h2 {
     color: #555;
 }
 
+.schedule-item-bosses {
+    margin: 5px 0;
+}
+
+.schedule-item-bosses .schedule-item-boss {
+    padding: 3px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.schedule-item-bosses .schedule-item-boss:last-child {
+    border-bottom: none;
+}
+
 .schedule-item-notify-time {
     font-size: 14px;
     color: #999;

@@ -57,9 +57,9 @@ function parseSchedule(text) {
         
         // ตรวจสอบว่าเป็นเส้นคั่นหรือไม่ (อาจจะมี - หลายตัว, อาจมีช่องว่าง)
         if (/^[\s-]+$/.test(line) && line.length >= 3) {
-            // ถ้ามีข้อมูลในกลุ่มปัจจุบัน ให้เพิ่มบอสตัวแรกของกลุ่ม
+            // ถ้ามีข้อมูลในกลุ่มปัจจุบัน ให้เพิ่มบอสทั้งหมดของกลุ่ม
             if (currentGroup.length > 0) {
-                schedule.push(currentGroup[0]);
+                schedule.push(...currentGroup); // เพิ่มบอสทั้งหมดในกลุ่ม
                 currentGroup = [];
                 groupIndex++;
             }
@@ -135,9 +135,9 @@ function parseSchedule(text) {
         }
     }
 
-    // เพิ่มบอสตัวแรกของกลุ่มสุดท้ายถ้ามี
+    // เพิ่มบอสทั้งหมดของกลุ่มสุดท้ายถ้ามี
     if (currentGroup.length > 0) {
-        schedule.push(currentGroup[0]);
+        schedule.push(...currentGroup); // เพิ่มบอสทั้งหมดในกลุ่ม
     }
 
     return schedule;
@@ -192,30 +192,43 @@ function restartNotifications() {
     const now = new Date();
     let activeCount = 0;
 
-    // เริ่มตั้ง timer สำหรับแต่ละบอส
-    scheduleData.forEach((boss, index) => {
-        const notifyTime = new Date(boss.notifyTime);
-        const notifyBefore5Min = new Date(notifyTime.getTime() - 5 * 60 * 1000);
+    // จัดกลุ่มตาม groupIndex และตั้ง timer แค่บอสตัวแรกของแต่ละกลุ่ม
+    const grouped = {};
+    scheduleData.forEach(boss => {
+        if (!grouped[boss.groupIndex]) {
+            grouped[boss.groupIndex] = [];
+        }
+        grouped[boss.groupIndex].push(boss);
+    });
 
-        if (notifyBefore5Min > now) {
-            const delay = notifyBefore5Min.getTime() - now.getTime();
-            const timer = setTimeout(() => {
-                sendNotification(boss);
-            }, delay);
-            notificationTimers.push(timer);
-            activeCount++;
-            console.log(`ตั้ง timer สำหรับ ${boss.bossName} - แจ้งเตือนในอีก ${Math.floor(delay / 1000 / 60)} นาที`);
-        } else if (notifyTime > now && notifyBefore5Min <= now) {
-            // ถ้าเวลาผ่านไปแล้วแต่ยังไม่ถึงเวลาแจ้งเตือน ให้แจ้งทันที
-            console.log(`แจ้งเตือนทันทีสำหรับ ${boss.bossName}`);
-            sendNotification(boss);
+    // ตั้ง timer สำหรับบอสตัวแรกของแต่ละกลุ่มเท่านั้น
+    Object.keys(grouped).forEach(groupKey => {
+        const group = grouped[groupKey];
+        if (group.length > 0) {
+            const firstBoss = group[0]; // ใช้บอสตัวแรกของกลุ่ม
+            const notifyTime = new Date(firstBoss.notifyTime);
+            const notifyBefore7Min = new Date(notifyTime.getTime() - 7 * 60 * 1000);
+
+            if (notifyBefore7Min > now) {
+                const delay = notifyBefore7Min.getTime() - now.getTime();
+                const timer = setTimeout(() => {
+                    sendNotification(firstBoss);
+                }, delay);
+                notificationTimers.push(timer);
+                activeCount++;
+                console.log(`ตั้ง timer สำหรับกลุ่ม ${parseInt(groupKey) + 1} (${group.length} บอส) - แจ้งเตือนในอีก ${Math.floor(delay / 1000 / 60)} นาที`);
+            } else if (notifyTime > now && notifyBefore7Min <= now) {
+                // ถ้าเวลาผ่านไปแล้วแต่ยังไม่ถึงเวลาแจ้งเตือน ให้แจ้งทันที
+                console.log(`แจ้งเตือนทันทีสำหรับกลุ่ม ${parseInt(groupKey) + 1} (${group.length} บอส)`);
+                sendNotification(firstBoss);
+            }
         }
     });
 
     isRunning = true;
     saveToLocalStorage();
     updateScheduleList();
-    showStatus(`เริ่มรันการแจ้งเตือนแล้ว (${activeCount} รายการที่กำลังรอ)`, 'success');
+    showStatus(`เริ่มรันการแจ้งเตือนแล้ว (${activeCount} กลุ่มที่กำลังรอ)`, 'success');
 }
 
 // ฟังก์ชันส่งการแจ้งเตือน
@@ -238,7 +251,7 @@ function sendNotification(boss) {
     try {
         const timeStr = formatTime(boss.notifyTime);
         const bossNameText = `${boss.bossName}${boss.timeInBracket ? ` ${boss.timeInBracket}` : ''}${boss.bossLevel ? ` [${boss.bossLevel}]` : ''}`;
-        const message = `บอส ${bossNameText} จะเกิดในอีก 5 นาที (${timeStr})`;
+        const message = `บอส ${bossNameText} จะเกิดในอีก 7 นาที (${timeStr})`;
         
         const notification = new Notification('🎮 NotiBoss - แจ้งเตือนบอส', {
             body: message,
@@ -296,8 +309,8 @@ function updateScheduleList() {
     const now = new Date();
     const activeSchedules = scheduleData.filter(boss => {
         const notifyTime = new Date(boss.notifyTime);
-        const notifyBefore5Min = new Date(notifyTime.getTime() - 5 * 60 * 1000);
-        return notifyBefore5Min > now;
+        const notifyBefore7Min = new Date(notifyTime.getTime() - 7 * 60 * 1000);
+        return notifyBefore7Min > now;
     });
 
     if (activeSchedules.length === 0) {
@@ -307,7 +320,7 @@ function updateScheduleList() {
 
     scheduleList.innerHTML = '';
     
-    // จัดกลุ่มตาม groupIndex และแสดงแค่บอสตัวแรกของแต่ละกลุ่ม
+    // จัดกลุ่มตาม groupIndex และแสดงบอสทั้งหมดในกลุ่มเดียวกัน
     const grouped = {};
     activeSchedules.forEach(boss => {
         if (!grouped[boss.groupIndex]) {
@@ -318,10 +331,9 @@ function updateScheduleList() {
 
     Object.keys(grouped).sort((a, b) => parseInt(a) - parseInt(b)).forEach(groupKey => {
         const group = grouped[groupKey];
-        // แสดงแค่บอสตัวแรกของกลุ่ม (ตามที่ parse แล้ว)
+        // แสดงบอสทั้งหมดในกลุ่มเดียวกัน
         if (group.length > 0) {
-            const boss = group[0];
-            const item = createScheduleItem(boss);
+            const item = createScheduleGroupItem(group);
             scheduleList.appendChild(item);
         }
     });
@@ -330,34 +342,44 @@ function updateScheduleList() {
     updateCountdowns();
 }
 
-// ฟังก์ชันสร้าง schedule item
-function createScheduleItem(boss) {
+// ฟังก์ชันสร้าง schedule item สำหรับกลุ่มบอส
+function createScheduleGroupItem(group) {
+    // ใช้เวลาของบอสตัวแรกสำหรับ countdown (เพราะแจ้งเตือนแค่ตัวแรก)
+    const firstBoss = group[0];
+    
     const item = document.createElement('div');
     item.className = 'schedule-item';
-    item.dataset.notifyTime = boss.notifyTime.getTime();
+    item.dataset.notifyTime = firstBoss.notifyTime.getTime();
 
     const info = document.createElement('div');
     info.className = 'schedule-item-info';
 
     const time = document.createElement('div');
     time.className = 'schedule-item-time';
-    time.textContent = formatTime(boss.notifyTime);
+    time.textContent = formatTime(firstBoss.notifyTime);
 
-    const bossName = document.createElement('div');
-    bossName.className = 'schedule-item-boss';
-    const bossNameText = `${boss.bossName}${boss.timeInBracket ? ` ${boss.timeInBracket}` : ''}${boss.bossLevel ? ` [${boss.bossLevel}]` : ''}`;
-    bossName.textContent = bossNameText;
+    // สร้าง container สำหรับบอสทั้งหมดในกลุ่ม
+    const bossesContainer = document.createElement('div');
+    bossesContainer.className = 'schedule-item-bosses';
+    
+    group.forEach((boss, index) => {
+        const bossItem = document.createElement('div');
+        bossItem.className = 'schedule-item-boss';
+        const bossNameText = `${boss.bossName}${boss.timeInBracket ? ` ${boss.timeInBracket}` : ''}${boss.bossLevel ? ` [${boss.bossLevel}]` : ''}`;
+        bossItem.textContent = bossNameText;
+        bossesContainer.appendChild(bossItem);
+    });
 
     const notifyTime = document.createElement('div');
     notifyTime.className = 'schedule-item-notify-time';
-    notifyTime.textContent = `แจ้งเตือน: ${formatTime(new Date(boss.notifyTime.getTime() - 5 * 60 * 1000))}`;
+    notifyTime.textContent = `แจ้งเตือน: ${formatTime(new Date(firstBoss.notifyTime.getTime() - 7 * 60 * 1000))}`;
 
     const countdown = document.createElement('div');
     countdown.className = 'schedule-item-countdown';
     countdown.textContent = 'กำลังคำนวณ...';
 
     info.appendChild(time);
-    info.appendChild(bossName);
+    info.appendChild(bossesContainer);
     info.appendChild(notifyTime);
     item.appendChild(info);
     item.appendChild(countdown);
@@ -372,14 +394,14 @@ function updateCountdowns() {
 
     items.forEach(item => {
         const notifyTime = parseInt(item.dataset.notifyTime);
-        const notifyBefore5Min = new Date(notifyTime - 5 * 60 * 1000);
+        const notifyBefore7Min = new Date(notifyTime - 7 * 60 * 1000);
         const countdownEl = item.querySelector('.schedule-item-countdown');
 
-        if (notifyBefore5Min <= now) {
+        if (notifyBefore7Min <= now) {
             countdownEl.textContent = 'แจ้งเตือนแล้ว';
             countdownEl.classList.add('warning');
         } else {
-            const diff = notifyBefore5Min - now;
+            const diff = notifyBefore7Min - now;
             const minutes = Math.floor(diff / 60000);
             const seconds = Math.floor((diff % 60000) / 1000);
             countdownEl.textContent = `${minutes}:${String(seconds).padStart(2, '0')}`;
@@ -474,7 +496,7 @@ async function testNotification() {
         // ส่ง notification โดยตรง
         const timeStr = formatTime(testBoss.notifyTime);
         const bossNameText = `${testBoss.bossName}${testBoss.bossLevel ? ` [${testBoss.bossLevel}]` : ''}`;
-        const message = `บอส ${bossNameText} จะเกิดในอีก 5 นาที (${timeStr})`;
+        const message = `บอส ${bossNameText} จะเกิดในอีก 7 นาที (${timeStr})`;
         
         const notification = new Notification('🎮 NotiBoss - แจ้งเตือนบอส (ทดสอบ)', {
             body: message,
